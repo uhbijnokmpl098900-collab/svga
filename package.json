@@ -10,6 +10,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
+    "@fingerprintjs/fingerprintjs": "^5.0.1",
     "firebase": "10.8.0",
     "lucide-react": "^0.575.0",
     "motion": "^12.34.3",
