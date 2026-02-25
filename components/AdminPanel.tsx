@@ -12,7 +12,7 @@ interface AdminPanelProps {
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
-  const [activeTab, setActiveTab] = useState<'users' | 'keys' | 'backgrounds' | 'branding' | 'logs' | 'store' | 'orders' | 'system'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'keys' | 'features' | 'backgrounds' | 'branding' | 'logs' | 'store' | 'orders' | 'system'>('users');
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [logs, setLogs] = useState<ProcessLog[]>([]);
   const [keys, setKeys] = useState<LicenseKey[]>([]);
@@ -190,6 +190,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
         {[
           { id: 'users', label: 'الأعضاء' },
           { id: 'keys', label: 'أكواد' },
+          { id: 'features', label: 'المزايا' },
           { id: 'store', label: 'المتجر' },
           { id: 'orders', label: 'الطلبات' },
           { id: 'backgrounds', label: 'الخلفيات' },
@@ -200,7 +201,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
           <button 
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 px-3 py-3 rounded-2xl text-[8px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-sky-500 text-white shadow-glow-sky' : 'text-slate-500 hover:text-white'}`}
+            className={`flex-1 min-w-[80px] px-2 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? 'bg-sky-500 text-white shadow-glow-sky' : 'text-slate-500 hover:text-white hover:bg-white/5'}`}
           >
             {tab.label}
           </button>
@@ -209,6 +210,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ currentUser }) => {
 
       <div className="min-h-[500px]">
         {activeTab === 'users' && <UserManagement users={users} />}
+        {activeTab === 'features' && <FeatureConfig settings={settings} />}
         
         {activeTab === 'store' && (
           <div className="space-y-6">

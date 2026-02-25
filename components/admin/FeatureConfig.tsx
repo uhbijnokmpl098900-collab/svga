@@ -11,9 +11,12 @@ interface Props {
 export const FeatureConfig: React.FC<Props> = ({ settings }) => {
   const updateSettings = async (path: string, value: any) => {
     const keys = path.split('.');
-    const newSettings = { ...settings };
+    const newSettings = JSON.parse(JSON.stringify(settings));
     let current: any = newSettings;
-    for (let i = 0; i < keys.length - 1; i++) current = current[keys[i]];
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) current[keys[i]] = {};
+      current = current[keys[i]];
+    }
     current[keys[keys.length - 1]] = value;
     
     await setDoc(doc(db, "settings", "general"), newSettings, { merge: true });
@@ -24,8 +27,7 @@ export const FeatureConfig: React.FC<Props> = ({ settings }) => {
       <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 space-y-6">
         <h3 className="text-white font-black text-sm uppercase tracking-widest border-b border-white/5 pb-4">تسعير المزايا (Coins)</h3>
         
-        <div className="space-y-6">
-          <div className="flex items-center justify-between gap-4">
+          <div className="grid grid-cols-2 gap-4">
              <div className="flex-1">
                 <label className="text-slate-500 text-[10px] font-black uppercase tracking-widest block mb-2">معالجة SVGA</label>
                 <input 
@@ -42,12 +44,27 @@ export const FeatureConfig: React.FC<Props> = ({ settings }) => {
                   className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-emerald-400 font-black"
                 />
              </div>
+             <div className="flex-1">
+                <label className="text-slate-500 text-[10px] font-black uppercase tracking-widest block mb-2">المحاولات المجانية</label>
+                <input 
+                  type="number" value={settings.defaultFreeAttempts || 1}
+                  onChange={(e) => updateSettings('defaultFreeAttempts', parseInt(e.target.value))}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white font-black"
+                />
+             </div>
+             <div className="flex-1">
+                <label className="text-slate-500 text-[10px] font-black uppercase tracking-widest block mb-2">سعر الـ VIP ($)</label>
+                <input 
+                  type="number" value={settings.costs.vipPrice}
+                  onChange={(e) => updateSettings('costs.vipPrice', parseInt(e.target.value))}
+                  className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-amber-400 font-black"
+                />
+             </div>
           </div>
           
           <div className="p-4 bg-sky-500/5 border border-sky-500/10 rounded-2xl">
             <p className="text-[10px] text-sky-400 font-bold text-center">ملاحظة: أعضاء الـ VIP يستخدمون جميع المزايا مجاناً تلقائياً.</p>
           </div>
-        </div>
       </div>
 
       <div className="bg-white/[0.02] border border-white/5 rounded-[2.5rem] p-8 space-y-6">

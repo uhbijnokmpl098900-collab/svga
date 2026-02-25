@@ -88,6 +88,7 @@ export interface AppSettings {
   backgroundUrl: string;
   whatsappNumber?: string;
   isRegistrationOpen: boolean;
+  defaultFreeAttempts?: number;
   costs: {
     svgaProcess: number;
     batchCompress: number;

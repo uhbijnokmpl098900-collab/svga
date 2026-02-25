@@ -9,8 +9,14 @@ import {
   addDoc, 
   updateDoc, 
   serverTimestamp,
-  limit
+  limit,
+  doc,
+  getDoc,
+  setDoc,
+  increment,
+  arrayUnion
 } from 'firebase/firestore';
+import { load } from '@fingerprintjs/fingerprintjs';
 import { UserRecord, AppSettings, SubscriptionType } from '../types';
 
 const MASTER_ADMIN_NAME = "150";
@@ -29,6 +35,39 @@ export const Login: React.FC<LoginProps> = ({ onLogin, settings, onCancel }) => 
   const [error, setError] = useState<string | null>(null);
   const [isSignUp, setIsSignUp] = useState(false);
 
+  const checkDeviceAndRegister = async (username: string) => {
+    try {
+      const fp = await load();
+      const result = await fp.get();
+      const deviceId = result.visitorId;
+      
+      const deviceRef = doc(db, "device_fingerprints", deviceId);
+      const deviceSnap = await getDoc(deviceRef);
+      
+      if (deviceSnap.exists()) {
+        const data = deviceSnap.data();
+        if (data.count >= 2) {
+          throw new Error("عذراً، لقد تجاوزت الحد المسموح لإنشاء الحسابات من هذا الجهاز (حسابين فقط).");
+        }
+        
+        await updateDoc(deviceRef, {
+          count: increment(1),
+          accounts: arrayUnion(username),
+          lastSignup: serverTimestamp()
+        });
+      } else {
+        await setDoc(deviceRef, {
+          count: 1,
+          accounts: [username],
+          firstSignup: serverTimestamp(),
+          lastSignup: serverTimestamp()
+        });
+      }
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const fetchAndCheckUser = async (username: string) : Promise<UserRecord | null> => {
     const usersRef = collection(db, "users");
     const q = query(usersRef, where("name", "==", username), limit(1));
@@ -38,6 +77,12 @@ export const Login: React.FC<LoginProps> = ({ onLogin, settings, onCancel }) => 
 
     if (querySnapshot.empty) {
       // مستخدم جديد
+      
+      // Check device limit if not master admin
+      if (!isMaster) {
+        await checkDeviceAndRegister(username);
+      }
+
       const newUser = {
         name: username,
         password: password, 
@@ -46,7 +91,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin, settings, onCancel }) => 
         status: 'active' as 'active' | 'banned' | 'pending',
         isVIP: false,
         coins: isMaster ? 999999 : 0, 
-        freeAttempts: 5, // 5 محاولات مجانية لكل مستخدم جديد
+        freeAttempts: settings?.defaultFreeAttempts ?? 1, // استخدام القيمة من الإعدادات أو 1 كافتراضي
         subscriptionExpiry: null,
         subscriptionType: 'none' as SubscriptionType,
         createdAt: serverTimestamp(),
@@ -105,9 +150,13 @@ export const Login: React.FC<LoginProps> = ({ onLogin, settings, onCancel }) => 
           }
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("حدث خطأ في الاتصال بالسيرفر.");
+      if (err.message && err.message.includes("عذراً، لقد تجاوزت الحد")) {
+        setError(err.message);
+      } else {
+        setError("حدث خطأ في الاتصال بالسيرفر.");
+      }
     } finally {
       setIsLoading(false);
     }
