@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../firebase';
 import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
 import { AppSettings, UserRecord, LicenseKey } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface HeaderProps {
   onLogoClick: () => void;
@@ -20,6 +21,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ 
   onLogoClick, isAdmin, currentUser, onAdminToggle, onLogout, isAdminOpen, onBatchOpen, onStoreOpen, onConverterOpen, currentTab 
 }) => {
+  const { language, setLanguage } = useLanguage();
   const [settings, setSettings] = useState<AppSettings>({
     appName: 'SVGA GENIUS',
     logoUrl: '',
@@ -171,6 +173,12 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           <nav className="flex items-center gap-2 border-r border-white/5 pr-4 mr-2">
+            <button 
+              onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+              className="px-3 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all text-slate-500 hover:text-white border border-transparent hover:border-white/10"
+            >
+              {language === 'ar' ? 'EN' : 'AR'}
+            </button>
             <button onClick={onLogoClick} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${currentTab === 'svga' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-500 hover:text-white'}`}>SVGA</button>
             <button onClick={onConverterOpen} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${currentTab === 'converter' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-500 hover:text-white'}`}>Converter</button>
             <button onClick={onBatchOpen} className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${currentTab === 'batch' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'text-slate-500 hover:text-white'}`}>Compressor</button>

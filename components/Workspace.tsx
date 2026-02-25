@@ -15,6 +15,7 @@ declare var UPNG: any;
 declare var WebMMuxer: any;
 
 import { VapPlayer } from './VapPlayer';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface WorkspaceProps {
   metadata: FileMetadata;
@@ -38,6 +39,7 @@ interface CustomLayer {
 const TRANSPARENT_PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 export const Workspace: React.FC<WorkspaceProps> = ({ metadata: initialMetadata, onCancel, settings, currentUser }) => {
+  const { t, dir } = useLanguage();
   const [metadata, setMetadata] = useState<FileMetadata>(initialMetadata);
   const playerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1944,6 +1946,10 @@ if (!this.JSON) { this.JSON = {}; }
                 wmImg = await loadImage(watermark);
             }
 
+            // Calculate Video Duration
+            const videoDuration = totalFrames / fps;
+            const maxAudioDuration = videoDuration; // Sync audio with video
+
             // Audio Setup
             let audioEncoder: AudioEncoder | null = null;
             let audioTrack: any = undefined;
@@ -1962,7 +1968,7 @@ if (!this.JSON) { this.JSON = {}; }
 
                     if (arrayBuffer && arrayBuffer.byteLength > 0) {
                         // Use OfflineAudioContext for more stable decoding
-                        const offlineCtx = new OfflineAudioContext(2, 48000 * 1, 48000); // Dummy length, will be ignored by decodeAudioData
+                        const offlineCtx = new OfflineAudioContext(2, 48000 * 1, 48000); 
                         const audioBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
                         
                         // If successful, we have audio. Prepare for encoding.
@@ -1974,15 +1980,20 @@ if (!this.JSON) { this.JSON = {}; }
 
                         // Prepare Audio Data Chunks
                         const numberOfChannels = 2;
-                        const length = audioBuffer.length;
                         const sampleRate = audioBuffer.sampleRate;
+                        
+                        // Calculate max samples based on video duration
+                        const maxSamples = Math.floor(maxAudioDuration * sampleRate);
+                        const length = Math.min(audioBuffer.length, maxSamples);
+                        
                         const planarBuffer = new Float32Array(length * numberOfChannels);
                         
                         for (let c = 0; c < numberOfChannels; c++) {
                             const channelData = audioBuffer.numberOfChannels > c 
                                 ? audioBuffer.getChannelData(c) 
                                 : audioBuffer.getChannelData(0);
-                            planarBuffer.set(channelData, c * length);
+                            // Only copy up to 'length'
+                            planarBuffer.set(channelData.subarray(0, length), c * length);
                         }
 
                         const chunkSize = sampleRate; // 1 second chunks
@@ -2032,8 +2043,8 @@ if (!this.JSON) { this.JSON = {}; }
                 codec: 'vp09.00.10.08',
                 width: vapWidth,
                 height: vapHeight,
-                bitrate: 8000000, // Increased bitrate for better quality
-                alpha: 'discard' // We are encoding opaque frame
+                bitrate: 15000000, // 15 Mbps for high quality
+                alpha: 'discard'
             });
 
             // Configure Audio Encoder if we have audio track
@@ -2065,14 +2076,15 @@ if (!this.JSON) { this.JSON = {}; }
 
             for (let i = 0; i < totalFrames; i++) {
                 svgaInstance.stepToFrame(i, true);
-                await new Promise(r => setTimeout(r, 20)); // Increased wait time slightly
+                await new Promise(r => setTimeout(r, 50)); // Increased wait time for stability
 
-                if (videoEncoder.encodeQueueSize > 15) {
+                if (videoEncoder.encodeQueueSize > 10) { // Lower threshold to prevent queue buildup
                     await videoEncoder.flush();
                 }
 
                 // --- COMPOSITION START ---
                 cCtx.clearRect(0, 0, safeWidth, safeHeight);
+                vCtx?.clearRect(0, 0, vapWidth, vapHeight); // Clear VAP canvas
 
                 // 1. Background
                 if (bgImg && bgImg.complete && bgImg.naturalWidth > 0) {
@@ -2795,7 +2807,7 @@ if (!this.JSON) { this.JSON = {}; }
                         <div className="fixed inset-0 z-[400] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in zoom-in duration-300">
                             <div className="bg-slate-900 border border-white/10 p-8 rounded-[3rem] w-full max-w-md shadow-3xl text-center space-y-6">
                                 <div className="flex justify-between items-center">
-                                    <h3 className="text-white font-black text-lg uppercase tracking-tighter">نافذة تسجيل الفيديو</h3>
+                                    <h3 className="text-white font-black text-lg uppercase tracking-tighter">{t('recording_window')}</h3>
                                     <button onClick={() => setShowRecordingModal(false)} className="text-slate-500 hover:text-white">
                                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
@@ -2803,22 +2815,22 @@ if (!this.JSON) { this.JSON = {}; }
                                 
                                 <div className="bg-black/40 rounded-2xl p-6 border border-white/5 space-y-4">
                                     <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                                        <span className="text-slate-500 text-[10px] font-black uppercase">الأبعاد</span>
+                                        <span className="text-slate-500 text-[10px] font-black uppercase">{t('dimensions')}</span>
                                         <span className="text-sky-400 font-mono font-bold">{videoWidth} x {videoHeight}</span>
                                     </div>
                                     <div className="flex justify-between items-center border-b border-white/5 pb-2">
-                                        <span className="text-slate-500 text-[10px] font-black uppercase">المدة الزمنية</span>
+                                        <span className="text-slate-500 text-[10px] font-black uppercase">{t('duration')}</span>
                                         <span className="text-sky-400 font-mono font-bold">{((metadata.frames || 0) / (metadata.fps || 30)).toFixed(2)}s</span>
                                     </div>
                                     <div className="flex justify-between items-center">
-                                        <span className="text-slate-500 text-[10px] font-black uppercase">عدد الإطارات</span>
+                                        <span className="text-slate-500 text-[10px] font-black uppercase">{t('frames')}</span>
                                         <span className="text-sky-400 font-mono font-bold">{metadata.frames} Frame</span>
                                     </div>
                                 </div>
 
                                 <div className="p-4 bg-sky-500/10 border border-sky-500/20 rounded-2xl">
                                     <p className="text-[10px] text-sky-300 font-bold">
-                                        سيتم تسجيل الفيديو بدقة عالية (Frame-by-Frame) لضمان تطابق المدة الزمنية والجودة تماماً مع الملف الأصلي.
+                                        {t('recording_note')}
                                     </p>
                                 </div>
 
@@ -2827,7 +2839,7 @@ if (!this.JSON) { this.JSON = {}; }
                                     className="w-full py-5 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-glow-red transition-all active:scale-95 flex items-center justify-center gap-3"
                                 >
                                     <span className="w-3 h-3 bg-white rounded-full animate-pulse"></span>
-                                    بدء التسجيل الآن
+                                    {t('start_recording')}
                                 </button>
                                 <style>{`.shadow-glow-red { box-shadow: 0 0 30px rgba(239, 68, 68, 0.4); }`}</style>
                             </div>
@@ -2838,88 +2850,258 @@ if (!this.JSON) { this.JSON = {}; }
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                             <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl w-full max-w-3xl max-h-[80vh] overflow-hidden shadow-2xl flex flex-col">
                                 <div className="flex items-center justify-between p-4 border-b border-white/10 bg-white/5">
-                                    <h3 className="text-white font-bold text-sm">توثيق flutter_vap_plus</h3>
+                                    <h3 className="text-white font-bold text-sm">{t('vap_docs')}</h3>
                                     <button onClick={() => setShowVapHelp(false)} className="text-white/50 hover:text-white transition-colors">
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                                     </button>
                                 </div>
                                 <div className="p-6 overflow-y-auto space-y-6 text-gray-300 text-sm leading-relaxed" dir="ltr">
-                                    <div className="space-y-2">
-                                        <h4 className="text-white font-bold text-base">Installation</h4>
-                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5">
-                                            flutter_vap_plus: ^1.2.10
+                                    <div className={`space-y-4 ${dir === 'rtl' ? 'text-right' : 'text-left'}`} dir={dir}>
+                                        <h4 className="text-white font-bold text-base border-b border-white/10 pb-2 mb-4">{t('installation')}</h4>
+                                        
+                                        <div className="space-y-2">
+                                            <p className="text-slate-400 font-bold text-xs">{t('run_command')}</p>
+                                            <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 text-left text-sky-400" dir="ltr">
+                                                $ flutter pub add flutter_vap_plus
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <p className="text-slate-400 font-bold text-xs">{t('add_to_pubspec')}</p>
+                                            <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 text-left text-emerald-400" dir="ltr">
+                                                dependencies:
+                                                  flutter_vap_plus: ^1.2.10
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <p className="text-slate-400 font-bold text-xs">{t('import_dart')}</p>
+                                            <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 text-left text-indigo-400" dir="ltr">
+                                                import 'package:flutter_vap_plus/flutter_vap_plus.dart';
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div className="space-y-2">
-                                        <h4 className="text-white font-bold text-base">Usage</h4>
-                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 whitespace-pre overflow-x-auto">
-{`import 'package:flutter_vap_plus/flutter_vap_plus.dart';
+                                        <h4 className="text-white font-bold text-base">{t('complete_example')}</h4>
+                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 whitespace-pre overflow-x-auto h-96 custom-scrollbar">
+{`import 'dart:io';
 
-late VapController vapController;
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'dart:async';
+import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 
-IgnorePointer(
-  // VapView can set the width and height through the outer package Container()
-  child: VapView(
-    fit: VapScaleFit.FIT_XY,
-    onEvent: (event, args) {
-      debugPrint('VapView event:\${event}');
-    },
-    onControllerCreated: (controller) {
-      vapController = controller;
-    },
-  ),
-),`}
-                                        </div>
-                                    </div>
+import 'package:flutter_vap_plus/flutter_vap_plus.dart';
+import 'package:oktoast/oktoast.dart';
+import 'package:path_provider/path_provider.dart';
 
-                                    <div className="space-y-2">
-                                        <h4 className="text-white font-bold text-base">Play Local Video</h4>
-                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 whitespace-pre overflow-x-auto">
-{`import 'package:flutter_vap_plus/flutter_vap_plus.dart';
+void main() {
+  runApp(MyApp());
+}
 
-Future<void> _playFile(String path) async {
-  if (path == null) {
-    return null;
+class MyApp extends StatefulWidget {
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  List<String> downloadPathList = [];
+  bool isDownload = false;
+  VapController? vapController;
+  VapScaleFit vapScaleFit = VapScaleFit.FIT_XY;
+
+  @override
+  void initState() {
+    super.initState();
+    initDownloadPath();
   }
-  await vapController.playPath(path);
-}`}
-                                        </div>
-                                    </div>
 
-                                    <div className="space-y-2">
-                                        <h4 className="text-white font-bold text-base">Play Asset Video</h4>
-                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 whitespace-pre overflow-x-auto">
-{`Future<void> _playAsset(String asset) async {
-  if (asset == null) {
-    return null;
+  Future<void> initDownloadPath() async {
+    Directory appDocDir = await getApplicationDocumentsDirectory();
+    String rootPath = appDocDir.path;
+    downloadPathList = ["$rootPath/vap_demo1.mp4", "$rootPath/vap_demo2.mp4"];
+    print("downloadPathList:$downloadPathList");
   }
-  await vapController.playAsset(asset);
-}`}
-                                        </div>
-                                    </div>
 
-                                    <div className="space-y-2">
-                                        <h4 className="text-white font-bold text-base">Merge Animation (Dynamic Replacement)</h4>
-                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5 whitespace-pre overflow-x-auto">
-{`import 'package:flutter_vap_plus/flutter_vap_plus.dart';
+  @override
+  Widget build(BuildContext context) {
+    return OKToast(
+      child: MaterialApp(
+        home: Scaffold(
+          body: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              color: Color.fromARGB(255, 100, 241, 243),
+              // image: DecorationImage(image: AssetImage("static/bg.jpeg")),
+            ),
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CupertinoButton(
+                      color: Colors.purple,
+                      child: Text(
+                          "download video source\${isDownload ? "(✅)" : ""}"),
+                      onPressed: _download,
+                    ),
+                    CupertinoButton(
+                      color: Colors.purple,
+                      child: Text("File1 play"),
+                      onPressed: () => _playFile(downloadPathList[0]),
+                    ),
+                    CupertinoButton(
+                      color: Colors.purple,
+                      child: Text("File2 play"),
+                      onPressed: () => _playFile(downloadPathList[1]),
+                    ),
+                    CupertinoButton(
+                      color: Colors.purple,
+                      child: Text("asset play"),
+                      onPressed: () => _playAsset("static/demo.mp4"),
+                    ),
+                    Builder(builder: (context) {
+                      return CupertinoButton(
+                        color: Colors.purple,
+                        child: Text("fusion animation play"),
+                        onPressed: () {
+                          showDialog<void>(
+                            context: context,
+                            barrierDismissible: true,
+                            // false = user must tap button, true = tap outside dialog
+                            builder: (BuildContext dialogContext) {
+                              return AlertDialog(
+                                backgroundColor: Colors.transparent,
+                                content: GestureDetector(
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    child: IgnorePointer(
+                                      child: VapView(
+                                          fit: VapScaleFit.FIT_CENTER,
+                                          onControllerCreated:
+                                              (controller) async {
+                                            var avatarFile =
+                                                await _getImageFileFromAssets(
+                                                    'static/bg.jpeg');
+                                            await controller.playAsset(
+                                                'static/video.mp4',
+                                                fetchResources: [
+                                                  FetchResourceModel(
+                                                      tag: '01',
+                                                      resource: '测试文本01'),
+                                                  FetchResourceModel(
+                                                      tag: '02',
+                                                      resource: '测试文本02'),
+                                                  FetchResourceModel(
+                                                      tag: '03',
+                                                      resource:
+                                                          avatarFile.path),
+                                                ]);
 
-Future<void> _playFile(String path) async {
-  if (path == null) {
-    return null;
+                                            Navigator.of(context).pop();
+                                          }),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
+                      );
+                    }),
+                    CupertinoButton(
+                      color: Colors.purple,
+                      child: Text("stop play"),
+                      onPressed: () => vapController?.stop(),
+                    ),
+                    CupertinoButton(
+                      color: Colors.purple,
+                      child: Text("queue play"),
+                      onPressed: _queuePlay,
+                    ),
+                  ],
+                ),
+                Positioned.fill(
+                    child: IgnorePointer(
+                  // VapView可以通过外层包Container(),设置宽高来限制弹出视频的宽高
+                  // VapView can set the width and height through the outer package Container() to limit the width and height of the pop-up video
+                  child: VapView(
+                    fit: VapScaleFit.FIT_XY,
+                    onEvent: (event, args) {
+                      debugPrint('VapView event:\${event}');
+                    },
+                    onControllerCreated: (controller) {
+                      vapController = controller;
+                    },
+                  ),
+                )),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
-  await vapController.playPath(path, fetchResources: [
-    FetchResourceModel(tag: 'tag', resource: '1.png'),
-    FetchResourceModel(tag: 'text', resource: 'test user 1'),
-  ]);
-}`}
-                                        </div>
-                                    </div>
 
-                                    <div className="space-y-2">
-                                        <h4 className="text-white font-bold text-base">Control</h4>
-                                        <div className="bg-black/50 rounded-lg p-3 font-mono text-xs border border-white/5">
-                                            VapController.stop()
+  Future<File> _getImageFileFromAssets(String path) async {
+    Directory tempDir = await getTemporaryDirectory();
+    String tempPath = tempDir.path;
+    var filePath = "$tempPath/$path";
+    var file = File(filePath);
+    if (file.existsSync()) {
+      return file;
+    } else {
+      final byteData = await rootBundle.load(path);
+      final buffer = byteData.buffer;
+      await file.create(recursive: true);
+      return file.writeAsBytes(
+          buffer.asUint8List(byteData.offsetInBytes, byteData.lengthInBytes));
+    }
+  }
+
+  _download() async {
+    await Dio().download(
+        "https://res.cloudinary.com/dkmchpua1/video/upload/v1737623468/zta2wxsuokcskw0bhar7.mp4",
+        downloadPathList[0]);
+    await Dio().download(
+        "https://res.cloudinary.com/dkmchpua1/video/upload/v1737624783/vcg9co6yyfqsadgety1n.mp4",
+        downloadPathList[1]);
+    setState(() {
+      isDownload = true;
+    });
+  }
+
+  Future<void> _playFile(String path,
+      {List<FetchResourceModel> fetchResources = const []}) async {
+    try {
+      await vapController?.playPath(path, fetchResources: fetchResources);
+    } catch (e, s) {
+      print(s);
+    }
+  }
+
+  Future<void> _playAsset(String asset,
+      {List<FetchResourceModel> fetchResources = const []}) async {
+    await vapController?.playAsset(asset, fetchResources: fetchResources);
+  }
+
+  Future<void> _queuePlay() async {
+    // 模拟多个地方同时调用播放,使得按顺序执行播放。
+    // Simultaneously call playback in multiple places, making the queue perform playback.
+    await vapController?.playPath(downloadPathList[0]);
+    await vapController?.playPath(downloadPathList[1]);
+    await _playAsset("static/demo.mp4");
+  }
+}`}
                                         </div>
                                     </div>
                                 </div>
